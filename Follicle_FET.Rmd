@@ -1,0 +1,220 @@
+---
+title: "HCG trigger of GnRH agonist-induced functional ovarian cysts does not decrease clinical pregnancy rate in GnRHa pretreated frozen cycles: evidence from a retrospective cohort study"
+author:
+  - Hong Zeng 
+documentclass: ctexart
+keywords:
+  - Gonadotrophin releasing hormone agonist
+  - Functional ovarian cyst
+  - hCG trigger
+  - Frozen-thawed embryo transfer
+  - Hormone replacement therapy
+geometry: "left=1.5cm, right=1.5cm, top=1.5cm, bottom=1.2cm"
+output:
+  rticles::ctex:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
+---
+# first load the data
+```{r}
+load("Data.Rda")#load data
+df[unique(df$ID), ]%>% nrow()#count the number of patients
+nrow(df)#count the number of FET cycles
+```
+
+# Table 1
+## Charateristics description of the crude cohort
+```{r Table 1 charateristics, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"compareGroups" %in% installed.packages()){
+  install.packages('compareGroups')}
+library(compareGroups)
+table1 <- descrTable(group ~ Age + Infertility_cause + Endometrial_thick + BMI + bFSH + Endometrial_pattern, data=df, show.all=T,  method = c( bFSH=2), p.corrected = F, digits = 2)
+table1
+```
+
+## calculate the cancel rate of Table 1
+```{r Table 1 cancer rate, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"tidyverse" %in% installed.packages()){
+  install.packages('tidyverse')}
+library(tidyverse)
+cancel_rate <- df %>% group_by(group) %>% count(No_ET) %>% filter(No_ET=="0")
+cancel_rate
+options(digits = 6)
+chisq.test(matrix(data=c(14, 579, 5, 59), nrow = 2, byrow = T), correct = F)
+```
+
+# Table 2 
+## Multivariate regression analysis revealed the risk factors associated with the incidence of FC
+### age and BMI as continous vairables (model1)
+```{r Table 2 model1, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"tidyverse" %in% installed.packages()){
+  install.packages('tidyverse')}
+if(!"geepack" %in% installed.packages()){
+  install.packages('geepack')}
+if(!"gtsummary" %in% installed.packages()){
+  install.packages('gtsummary')}
+library(tidyverse)
+library(geepack)
+library(gtsummary)
+df <- within(df, {
+  group_num <- NA
+  group_num[group == "Control group"] <- 0
+  group_num[group == "Follicle group"] <- 1
+})
+tbl_gee_FC1 <- geeglm(group_num ~ Age + BMI, id = ID, data = df, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_FC1
+```
+
+### age and BMI as categorical vairables (model2)
+```{r Table 2 model2, echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(geepack)
+library(gtsummary)
+tbl_gee_FC2 <- geeglm(group_num ~ Cat_Age + Cat_BMI, id = ID, data = df, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_FC2
+```
+
+# Table 3
+## Statistical description of the included cohort after excluding the cycles with exclusion criteria before PSM
+```{r Table 3 Baseline characteristics and pregnancy outcomes before PSM, echo=TRUE, message=FALSE, warning=FALSE}
+table2 <- descrTable(group ~ Age + Infertility_cause + Endometrial_thick + Endometrial_pattern + BMI + bFSH + Embryo_type + No_ET + No_GEm + CP + Miscarriage + EP, data=df_select, show.all=F,  method = c( bFSH=2), p.corrected = F, digits = 2)
+table2
+```
+
+## Calculate the implantation rate before PSM
+```{r Table 3 implantation rate before PSM, echo=TRUE, message=FALSE, warning=FALSE}
+# 胚胎着床率
+library(tidyverse)
+IMR_beforePSM <- df_select %>% group_by(group) %>% summarise(total_sac=sum(No_sacs), total_ET=sum(No_ET_num), IMR=sum(No_sacs)/sum(No_ET_num)) 
+IMR_beforePSM
+options(digits = 6)
+chisq.test(as.matrix(IMR_beforePSM[,c("total_sac", "total_ET")]), correct = F)
+```
+
+## propensity score mathcing(PSM)-1:1matching
+```{r PSM, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"MatchIt" %in% installed.packages()){
+  install.packages('MatchIt')}
+library(MatchIt)
+set.seed(12345678)
+matched_data1 <- MatchIt::matchit(group~Age + BMI + No_ET + No_GEm + Embryo_type, data=df_select, method = "nearest", ratio=1, caliper=0.02)
+summary(matched_data1)
+data_matched1 <- MatchIt::match.data(matched_data1)
+plot(matched_data1, type = "jitter")
+plot(matched_data1, type = "hist")
+```
+
+## Statistical description of the included cohort after excluding the cycles with exclusion criteria after PSM
+```{r Table 3 Baseline characteristics and pregnancy outcomes after PSM, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"compareGroups" %in% installed.packages()){
+  install.packages('compareGroups')}
+library(compareGroups)
+table_match1 <- descrTable(group ~  Age + Infertility_cause + Endometrial_thick + Endometrial_pattern + BMI + bFSH + Embryo_type + No_ET + No_GEm + CP + Miscarriage + EP, data=data_matched1, show.all=F,  method = c( bFSH=2), p.corrected = F, digits = 2)
+table_match1
+```
+
+## Calculate the implantation rate after PSM
+```{r Table 3 implantation rate after PSM, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"tidyverse" %in% installed.packages()){
+  install.packages('tidyverse')}
+library(tidyverse)
+IMR_afterPSM <- data_matched1 %>% group_by(group) %>% summarise(total_sac=sum(No_sacs), total_ET=sum(No_ET_num), IMR=sum(No_sacs)/sum(No_ET_num)) 
+IMR_afterPSM
+options(digits = 6)
+chisq.test(as.matrix(IMR_afterPSM[,c("total_sac", "total_ET")]), correct = F)
+```
+
+# Table 4
+## Multivariate regression analysis revealed the effect of HCG triggering GnRHa-induced FC on clinical pregnancy
+### Model1--adjusted for the number of transferred embryos, the number of transferred good-quality embryos, and the type of transferred embryos
+```{r Table 4 model1, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"tidyverse" %in% installed.packages()){
+  install.packages('tidyverse')}
+if(!"geepack" %in% installed.packages()){
+  install.packages('geepack')}
+if(!"gtsummary" %in% installed.packages()){
+  install.packages('gtsummary')}
+library(tidyverse)
+library(geepack)
+library(gtsummary)
+tbl_gee_CP1 <- geeglm(CP_num ~ group + No_ET + No_GEm + Embryo_type, id = ID, data = df_select, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_CP1
+```
+
+### model2--adjusted for the number of transferred embryos, the number of transferred good-quality embryos, the type of transferred embryos, female age, and BMI
+```{r Table 4 model2, echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(geepack)
+library(gtsummary)
+tbl_gee_CP2 <- geeglm(CP_num ~ group + Cat_Age + Cat_BMI + No_ET + No_GEm + Embryo_type, id = ID, data = df_select, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_CP2
+```
+
+### model3-adjusted with the number of transferred embryos, the number of transferred good-quality embryos, the type of transferred embryos, female age, BMI, endometrial thickness, and endometrial pattern,
+```{r Table 4 model3, echo=TRUE, message=FALSE, warning=FALSE}
+library(geepack)
+library(gtsummary)
+library(tidyverse)
+tbl_gee_CP3 <- geeglm(CP_num ~ group + Cat_Age + Cat_BMI + No_ET + No_GEm + Embryo_type + Cat_EndoThickofET + Endometrial_pattern, id = ID, data = df_select, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_CP3
+```
+
+# The interactive analysis
+```{r interactive analysis, echo=TRUE, message=FALSE, warning=FALSE}
+if(!"tidyverse" %in% installed.packages()){
+  install.packages('tidyverse')}
+if(!"geepack" %in% installed.packages()){
+  install.packages('geepack')}
+if(!"gtsummary" %in% installed.packages()){
+  install.packages('gtsummary')}
+library(tidyverse)
+library(geepack)
+library(gtsummary)
+gee_interactive <- geeglm(CP_num ~ group + Cat_Age + Cat_BMI + No_ET + No_GEm + Embryo_type + Cat_Age:group, data = df_select,family = binomial(logit), id = ID, corstr="independence")
+summary(gee_interactive)
+fit_interactive <- glm(CP ~ group + Cat_Age + Cat_BMI + No_ET + No_GEm + Embryo_type + Cat_Age:group, data = df_select,family = binomial(logit))
+summary(fit_interactive)
+fit_non_interactive <- glm(CP ~ group + Cat_Age + Cat_BMI + No_ET + No_GEm + Embryo_type, data = df_select,family = binomial(logit))
+summary(fit_non_interactive)
+if(!"lmtest" %in% installed.packages()){
+  install.packages('lmtest')}
+library(lmtest)
+lrtest(fit_interactive, fit_non_interactive)
+```
+
+# Table 5
+## Subgroup analysis based on age
+### age >= 35 subgroup
+```{r Table 5 age > 35 subgroup, echo=TRUE, message=FALSE, warning=FALSE}
+df_select_35 <- subset(df_select, Age>="35")
+table(df_select_35$group)
+tbl_gee_CP_35 <- geeglm(CP_num ~ group + Cat_BMI + No_ET + No_GEm + Embryo_type, id = ID, data = df_select_35, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_CP_35
+```
+
+### age < 35 subgroup
+```{r Table 5 age < 35 subgroup, echo=TRUE, message=FALSE, warning=FALSE}
+df_select_35s <- subset(df_select, Age<"35")
+table(df_select_35s$group)
+tbl_gee_CP_35s <- geeglm(CP_num ~ group + Cat_BMI + No_ET + No_GEm + Embryo_type, id = ID, data = df_select_35s, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_CP_35s
+```
+
+## Subgroup analysis based on embryo type
+### cleavage embryo subgroup
+```{r}
+df_select_cleavage <- subset(df_select, Embryo_type == "cleavage")
+table(df_select_cleavage$group)
+tbl_gee_CP_cleavage <- geeglm(CP_num ~ group + Cat_BMI + No_ET + No_GEm, id = ID, data = df_select_cleavage, corstr="independence", family = binomial(logit)) %>% tbl_regression(exponentiate = TRUE)
+tbl_gee_CP_cleavage
+```
+
+## blastocyst embryo subgroup
+```{r}
+df_select_blastocyst <- subset(df_select, Embryo_type == "blastocyst")
+table(df_select_blastocyst$group)
+```
+
+
